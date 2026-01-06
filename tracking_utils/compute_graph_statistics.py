@@ -1,5 +1,6 @@
 import networkx as nx
 import numpy as np
+from typing import Dict, List, Tuple
 
 
 def _compute_mean_std(values: List[float]) -> Tuple[float, float]:
