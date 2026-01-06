@@ -162,17 +162,17 @@ def _add_node_attributes_from_csv(
 def create_candidate_graph(
     num_neighbors: int,
     csv_path: Path,
-    edge_attributes_csv_path: Optional[List[Path]],
-    node_attributes_csv_path: Optional[List[Path]],
-    region_props_attributes: Optional[List[str]],
-    zarr_container: Optional[Path],
-    group: Optional[str],
-    label_dataset: Optional[str],
-    raw_dataset: Optional[str],
+    group: Optional[str] = None,
+    edge_attributes_csv_path: Optional[List[Path]] = None,
+    node_attributes_csv_path: Optional[List[Path]] = None,
+    region_props_attributes: Optional[List[str]] = None,
+    zarr_container: Optional[Path] = None,
+    label_dataset: Optional[str] = None,
+    raw_dataset: Optional[str] = None,
     delta_t: int = 1,
     voxel_size: Dict[str, float] = {"y": 1.0, "x": 1.0},
 ) -> nx.DiGraph:
-    """Create a candidate graph for cell tracking.
+    """Create a candidate graph for tracking.
 
     Constructs a directed graph where nodes represent cell detections and edges
     represent potential associations between cells across time frames.
@@ -187,7 +187,8 @@ def create_candidate_graph(
             from the label image (e.g., ["area", "intensity_mean"]).
         zarr_container: Path to zarr container (required if region_props_attributes
             is specified).
-        group: Group name within zarr container.
+        group: Group name used to filter rows in the CSV file and to access
+            the corresponding group within the zarr container.
         label_dataset: Name of label dataset in zarr (required if region_props_attributes
             is specified).
         raw_dataset: Name of raw/intensity dataset in zarr (required if
