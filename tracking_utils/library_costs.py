@@ -15,11 +15,13 @@ class EdgeDistance(Cost):
         weight: float,
         constant: float,
         statistics: Optional[Tuple[float, float]] = None,
+        eps: float = 1e-8,
     ):
         self.attribute = attribute
         self.weight = Weight(weight)
         self.constant = Weight(constant)
         self.statistics = statistics
+        self.eps = eps
 
     def apply(self, solver: Solver) -> None:
         edge_variables = solver.get_variables(EdgeSelected)
@@ -27,7 +29,7 @@ class EdgeDistance(Cost):
             feature = self._get_edge_distance(solver.graph, key)
             if self.statistics is not None:
                 mean, std = self.statistics
-                feature = (feature - mean) / std
+                feature = (feature - mean) / (std + self.eps)
             solver.add_variable_cost(index, feature, self.weight)
             solver.add_variable_cost(index, 1.0, self.constant)
 
