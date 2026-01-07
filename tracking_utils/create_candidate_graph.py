@@ -216,6 +216,14 @@ def create_candidate_graph(
     frames = _group_nodes_by_frame(G)
     _add_edges(G, frames, num_neighbors, delta_t)
 
+    # Add ignore_appear_cost for first frame, ignore_disappear_cost for last frame
+    sorted_times = sorted(frames.keys())
+    first_frame, last_frame = sorted_times[0], sorted_times[-1]
+    for node_id in frames[first_frame]:
+        G.nodes[node_id]["ignore_appear_cost"] = True
+    for node_id in frames[last_frame]:
+        G.nodes[node_id]["ignore_disappear_cost"] = True
+
     if region_props_attributes is not None:
         _add_region_props(
             G,
