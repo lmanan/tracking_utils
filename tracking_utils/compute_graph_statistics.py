@@ -29,7 +29,7 @@ def compute_graph_statistics(
             for u, v in graph.edges():
                 u_attr = graph.nodes[u].get(attr, 0.0)
                 v_attr = graph.nodes[v].get(attr, 0.0)
-                values.append(np.linalg.norm([u_attr, v_attr]))
+                values.append(np.linalg.norm(np.array(u_attr) - np.array(v_attr)))
         else:
             statistics[attr] = (None, None)
             continue
