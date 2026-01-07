@@ -38,7 +38,7 @@ class EdgeDistance(Cost):
         if self.attribute in graph.nodes[u]:
             u_attr = graph.nodes[u][self.attribute]
             v_attr = graph.nodes[v][self.attribute]
-            return np.linalg.norm([u_attr, v_attr])
+            return np.linalg.norm(np.array(u_attr) - np.array(v_attr))
         logger.warning(
             f"Attribute '{self.attribute}' not found on edge or node for edge {edge}"
         )
