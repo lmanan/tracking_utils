@@ -1,6 +1,6 @@
 from typing import Dict, List, Tuple
 
-from tracking_utils.library_costs import EdgeDistance
+from tracking_utils.library_costs import EdgeSelection
 from motile.costs import Appear, Disappear
 from motile.solver import Solver
 
@@ -13,10 +13,10 @@ def add_costs(
     """Modify solver in place by adding edge distance, appear, and disappear costs."""
     for attr in attributes:
         solver.add_cost(
-            EdgeDistance(
+            EdgeSelection(
                 weight=1.0, constant=0.0, attribute=attr, statistics=statistics[attr]
             ),
-            name=f"Edge Distance {attr}",
+            name=f"Edge Selection {attr}",
         )
 
     solver.add_cost(

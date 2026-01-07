@@ -8,7 +8,7 @@ from motile.variables import EdgeSelected
 logger = logging.getLogger(__name__)
 
 
-class EdgeDistance(Cost):
+class EdgeSelection(Cost):
     def __init__(
         self,
         attribute: str,
