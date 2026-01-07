@@ -9,7 +9,8 @@ def add_costs(
     solver: Solver,
     attributes: List[str],
     statistics: Dict[str, Tuple[float, float]],
-):
+) -> None:
+    """Modify solver in place by adding edge distance, appear, and disappear costs."""
     for attr in attributes:
         solver.add_cost(
             EdgeDistance(
@@ -22,5 +23,3 @@ def add_costs(
         Appear(weight=0.0, constant=1.0, ignore_attribute="ignore_appear_cost")
     )
     solver.add_cost(Disappear(constant=1.0, ignore_attribute="ignore_disappear_cost"))
-
-    return solver
