@@ -218,11 +218,14 @@ def _add_region_props(
 
 
 def _add_edge_attributes_from_csv(
-    G: nx.DiGraph, edge_attributes_csv_path: List[Path]
+    G: nx.DiGraph, edge_attributes_csv_path: List[Path], attribute_name: str
 ) -> None:
     """Add edge attributes from CSV files."""
     for edge_attr_csv in edge_attributes_csv_path:
-        edge_attr_data, *_ = load_csv_edge_attribute(edge_attr_csv)
+        edge_attr_data, *_ = load_csv_edge_attribute(
+            edge_attr_csv,
+            attribute_name=attribute_name,
+        )
         for (src, tgt), attrs in edge_attr_data.items():
             if G.has_edge(src, tgt):
                 for attr_name, attr_value in attrs.items():
@@ -266,6 +269,7 @@ def create_candidate_graph(
     delta_t: int = 1,
     voxel_size: Dict[str, float] = {"y": 1.0, "x": 1.0},
     attribute_prefix: Optional[str] = None,
+    attribute_name: Optional[str] = None,
     direction: Literal["forward", "backward"] = "forward",
     add_hyper_edges: bool = False,
     ground_truth: bool = False,
@@ -358,7 +362,7 @@ def create_candidate_graph(
         )
 
     if edge_attributes_csv_path is not None:
-        _add_edge_attributes_from_csv(G, edge_attributes_csv_path)
+        _add_edge_attributes_from_csv(G, edge_attributes_csv_path, attribute_name)
 
     if node_attributes_csv_path is not None:
         _add_node_attributes_from_csv(G, node_attributes_csv_path, attribute_prefix)
