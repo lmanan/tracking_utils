@@ -218,9 +218,20 @@ def _add_region_props(
 
 
 def _add_edge_attributes_from_csv(
-    G: nx.DiGraph, edge_attributes_csv_path: List[Path], attribute_name: str
+    G: nx.DiGraph,
+    edge_attributes_csv_path: List[Path],
+    attribute_name: str,
+    is_affinity: bool = False,
 ) -> None:
-    """Add edge attributes from CSV files."""
+    """Add edge attributes from CSV files.
+
+    Args:
+        G: The graph to add attributes to.
+        edge_attributes_csv_path: List of CSV file paths containing edge attributes.
+        attribute_name: Name of the attribute column to load from CSV.
+        is_affinity: If True, negate attribute values to convert affinity to cost
+            (higher affinity -> lower cost). Default is False.
+    """
     for edge_attr_csv in edge_attributes_csv_path:
         edge_attr_data, *_ = load_csv_edge_attribute(
             edge_attr_csv,
@@ -229,6 +240,8 @@ def _add_edge_attributes_from_csv(
         for (src, tgt), attrs in edge_attr_data.items():
             if G.has_edge(src, tgt):
                 for attr_name, attr_value in attrs.items():
+                    if is_affinity:
+                        attr_value = -attr_value
                     G.edges[src, tgt][attr_name] = attr_value
 
 
@@ -270,6 +283,7 @@ def create_candidate_graph(
     voxel_size: Dict[str, float] = {"y": 1.0, "x": 1.0},
     attribute_prefix: Optional[str] = None,
     attribute_name: Optional[str] = None,
+    is_affinity: bool = False,
     direction: Literal["forward", "backward"] = "forward",
     add_hyper_edges: bool = False,
     ground_truth: bool = False,
@@ -306,6 +320,10 @@ def create_candidate_graph(
             graph always has edges pointing forward in time (for motile
             compatibility); backward edges are flipped after construction.
             Default is "forward".
+        is_affinity: If True, negate edge attribute values from CSV to convert
+            affinity scores to costs (higher affinity -> lower cost). Use this
+            when your CSV contains similarity/affinity scores where higher values
+            indicate better matches. Default is False.
         add_hyper_edges: If True, adds hyper-edges from each source node to all
             pairs of its neighbors within the same target frame. Hyper-edge
             targets are represented as (node1, node2) tuples. Useful for
@@ -362,7 +380,9 @@ def create_candidate_graph(
         )
 
     if edge_attributes_csv_path is not None:
-        _add_edge_attributes_from_csv(G, edge_attributes_csv_path, attribute_name)
+        _add_edge_attributes_from_csv(
+            G, edge_attributes_csv_path, attribute_name, is_affinity
+        )
 
     if node_attributes_csv_path is not None:
         _add_node_attributes_from_csv(G, node_attributes_csv_path, attribute_prefix)
