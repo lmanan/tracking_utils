@@ -237,12 +237,12 @@ def _add_edge_attributes_from_csv(
             edge_attr_csv,
             attribute_name=attribute_name,
         )
-        for (src, tgt), attrs in edge_attr_data.items():
+        for row in edge_attr_data:
+            src, tgt, attribute_value = int(row['id_u']), int(row['id_v']), float(row[attribute_name])
             if G.has_edge(src, tgt):
-                for attr_name, attr_value in attrs.items():
-                    if is_affinity:
-                        attr_value = -attr_value
-                    G.edges[src, tgt][attr_name] = attr_value
+                if is_affinity:
+                    attribute_value = -attribute_value
+                G.edges[src, tgt][attribute_name] = attribute_value
 
 
 def _add_node_attributes_from_csv(
