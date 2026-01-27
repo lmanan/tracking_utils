@@ -4,7 +4,7 @@ import networkx as nx
 import numpy as np
 from scipy.spatial import KDTree
 from skimage.measure import regionprops_table
-from typing import Optional, List, Dict, Literal
+from typing import Optional, List, Dict, Literal, Tuple
 from data_utils import load_csv_data, load_csv_edge_attribute, load_csv_node_attribute
 import zarr
 
@@ -183,32 +183,48 @@ def _add_hyper_edges(
 def _add_region_props(
     G: nx.DiGraph,
     frames: Dict[int, List[int]],
-    region_props_attributes: List[str],
+    region_props_attributes: Dict[str, float],
     zarr_container: Path,
     group: str,
     label_dataset: str,
     raw_dataset: str,
 ) -> None:
-    """Add region properties as node attributes from zarr label/intensity data."""
+    """Add region properties as node attributes from zarr label/intensity data.
+
+    Args:
+        G: The graph to add attributes to.
+        frames: Dictionary mapping time frames to node IDs.
+        region_props_attributes: Dictionary mapping attribute names to multipliers.
+            Use 1.0 for costs (higher value = higher cost).
+            Use -1.0 for affinities (higher value = lower cost).
+        zarr_container: Path to zarr container.
+        group: Group name in zarr container.
+        label_dataset: Name of label dataset.
+        raw_dataset: Name of raw/intensity dataset.
+    """
     zarr_root = zarr.open(zarr_container, mode="r")[group]
     label_data = zarr_root[label_dataset]
     intensity_data = zarr_root[raw_dataset]
 
+    attr_names = list(region_props_attributes.keys())
+
     for t, node_list in frames.items():
         t_int = int(t)
-        label_frame = np.array(label_data[t_int])
-        intensity_frame = np.array(intensity_data[t_int])
+        # zarr is C T [Z] Y X, so index channel 0 for labels, all channels for intensity
+        label_frame = np.array(label_data[0, t_int])
+        intensity_frame = np.array(intensity_data[:, t_int])
 
         props = regionprops_table(
             label_frame,
             intensity_image=intensity_frame,
-            properties=["label"] + region_props_attributes,
+            properties=["label"] + attr_names,
         )
 
         label_to_props = {}
         for i, label in enumerate(props["label"]):
             label_to_props[label] = {
-                attr: props[attr][i] for attr in region_props_attributes
+                attr: props[attr][i] * region_props_attributes[attr]
+                for attr in attr_names
             }
 
         for node_id in node_list:
@@ -219,20 +235,17 @@ def _add_region_props(
 
 def _add_edge_attributes_from_csv(
     G: nx.DiGraph,
-    edge_attributes_csv_path: List[Path],
-    attribute_name: str,
-    is_affinity: bool = False,
+    edge_attributes: Dict[Path, Tuple[str, float]],
 ) -> None:
     """Add edge attributes from CSV files.
 
     Args:
         G: The graph to add attributes to.
-        edge_attributes_csv_path: List of CSV file paths containing edge attributes.
-        attribute_name: Name of the attribute column to load from CSV.
-        is_affinity: If True, negate attribute values to convert affinity to cost
-            (higher affinity -> lower cost). Default is False.
+        edge_attributes: Dictionary mapping CSV file paths to (attribute_name, multiplier).
+            Use multiplier 1.0 for costs (higher value = higher cost).
+            Use multiplier -1.0 for affinities (higher value = lower cost).
     """
-    for edge_attr_csv in edge_attributes_csv_path:
+    for edge_attr_csv, (attribute_name, multiplier) in edge_attributes.items():
         edge_attr_data, *_ = load_csv_edge_attribute(
             edge_attr_csv,
             attribute_name=attribute_name,
@@ -241,23 +254,27 @@ def _add_edge_attributes_from_csv(
             src, tgt, attribute_value = (
                 int(row["id_u"]),
                 int(row["id_v"]),
-                float(row[attribute_name]),
+                float(row[attribute_name]) * multiplier,
             )
             if G.has_edge(src, tgt):
-                if is_affinity:
-                    attribute_value = -attribute_value
                 G.edges[src, tgt][attribute_name] = attribute_value
 
 
 def _add_node_attributes_from_csv(
-    G: nx.DiGraph, node_attributes_csv_path: List[Path], attribute_prefix: str
+    G: nx.DiGraph,
+    node_attributes: Dict[Path, Tuple[str, float]],
 ) -> None:
     """Add node attributes from CSV files.
 
-    node_attr_data is a structured numpy array with fields [id, t, <attr>_0, <attr>_1, ..., <attr>_N-1].
-    Stores the N-dim embeddings as a list on each node.
+    Args:
+        G: The graph to add attributes to.
+        node_attributes: Dictionary mapping CSV file paths to (attribute_prefix, multiplier).
+            The CSV should have fields [id, t, <prefix>_0, <prefix>_1, ..., <prefix>_N-1].
+            Values are stored as a list under the attribute_prefix name on each node.
+            Use multiplier 1.0 for costs (higher value = higher cost).
+            Use multiplier -1.0 for affinities (higher value = lower cost).
     """
-    for node_attr_csv in node_attributes_csv_path:
+    for node_attr_csv, (attribute_prefix, multiplier) in node_attributes.items():
         node_attr_data, *_ = load_csv_node_attribute(
             node_attr_csv, attribute_prefix=attribute_prefix
         )
@@ -268,8 +285,8 @@ def _add_node_attributes_from_csv(
         for row in node_attr_data:
             node_id = int(row["id"])
             if G.has_node(node_id):
-                G.nodes[node_id]["embedding"] = [
-                    float(row[field]) for field in embedding_fields
+                G.nodes[node_id][attribute_prefix] = [
+                    float(row[field]) * multiplier for field in embedding_fields
                 ]
 
 
@@ -277,17 +294,14 @@ def create_candidate_graph(
     num_neighbors: int,
     csv_path: Path,
     group: Optional[str] = None,
-    edge_attributes_csv_path: Optional[List[Path]] = None,
-    node_attributes_csv_path: Optional[List[Path]] = None,
-    region_props_attributes: Optional[List[str]] = None,
+    edge_attributes: Optional[Dict[Path, Tuple[str, float]]] = None,
+    node_attributes: Optional[Dict[Path, Tuple[str, float]]] = None,
+    region_props_attributes: Optional[Dict[str, float]] = None,
     zarr_container: Optional[Path] = None,
     label_dataset: Optional[str] = None,
     raw_dataset: Optional[str] = None,
     delta_t: int = 1,
     voxel_size: Dict[str, float] = {"y": 1.0, "x": 1.0},
-    attribute_prefix: Optional[str] = None,
-    attribute_name: Optional[str] = None,
-    is_affinity: bool = False,
     direction: Literal["forward", "backward"] = "forward",
     add_hyper_edges: bool = False,
     ground_truth: bool = False,
@@ -300,11 +314,20 @@ def create_candidate_graph(
     Args:
         num_neighbors: Number of nearest spatial neighbors to connect per node.
         csv_path: Path to CSV file with columns: sequence, id, time, [z], y, x, p_id.
-        edge_attributes_csv_path: Optional list of CSV paths for edge attributes.
-        node_attributes_csv_path: Optional list of CSV paths for node attributes
-            (e.g., confidence scores, pin attributes, ground truth labels).
-        region_props_attributes: Optional list of regionprops attributes to compute
-            from the label image (e.g., ["area", "intensity_mean"]).
+        edge_attributes: Optional dictionary mapping CSV file paths to
+            (attribute_name, multiplier) tuples. Example:
+            {"associations.csv": ("association", -1.0)}.
+            Use multiplier 1.0 for costs (higher value = higher cost).
+            Use multiplier -1.0 for affinities (higher value = lower cost).
+        node_attributes: Optional dictionary mapping CSV file paths to
+            (attribute_prefix, multiplier) tuples. Example:
+            {"embeddings.csv": ("embedding", 1.0)}.
+            The CSV should have fields [id, t, <prefix>_0, <prefix>_1, ...].
+            Values are stored as a list under the attribute_prefix name.
+        region_props_attributes: Optional dictionary mapping regionprops attribute
+            names to multipliers (e.g., {"area": 1.0, "intensity_mean": -1.0}).
+            Use 1.0 for costs (higher value = higher cost).
+            Use -1.0 for affinities (higher value = lower cost).
         zarr_container: Path to zarr container (required if region_props_attributes
             is specified).
         group: Group name used to filter rows in the CSV file and to access
@@ -324,10 +347,6 @@ def create_candidate_graph(
             graph always has edges pointing forward in time (for motile
             compatibility); backward edges are flipped after construction.
             Default is "forward".
-        is_affinity: If True, negate edge attribute values from CSV to convert
-            affinity scores to costs (higher affinity -> lower cost). Use this
-            when your CSV contains similarity/affinity scores where higher values
-            indicate better matches. Default is False.
         add_hyper_edges: If True, adds hyper-edges from each source node to all
             pairs of its neighbors within the same target frame. Hyper-edge
             targets are represented as (node1, node2) tuples. Useful for
@@ -383,13 +402,11 @@ def create_candidate_graph(
             raw_dataset,
         )
 
-    if edge_attributes_csv_path is not None:
-        _add_edge_attributes_from_csv(
-            G, edge_attributes_csv_path, attribute_name, is_affinity
-        )
+    if edge_attributes is not None:
+        _add_edge_attributes_from_csv(G, edge_attributes)
 
-    if node_attributes_csv_path is not None:
-        _add_node_attributes_from_csv(G, node_attributes_csv_path, attribute_prefix)
+    if node_attributes is not None:
+        _add_node_attributes_from_csv(G, node_attributes)
 
     # Add GT attribute to all real nodes (not hypernodes) if ground_truth is True
     if ground_truth:
