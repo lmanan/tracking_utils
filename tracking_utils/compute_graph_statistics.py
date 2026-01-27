@@ -106,3 +106,42 @@ def compute_graph_statistics(
             statistics[attr]["hyper"] = _compute_mean_std(hyper_values)
 
     return statistics
+
+
+def compute_node_statistics(
+    graph: nx.DiGraph,
+    attributes: List[str],
+    frame_attribute: str = "time",
+) -> Dict[str, Tuple[float, float]]:
+    """Compute mean and std for node attributes (for z-score normalization).
+
+    Args:
+        graph: The candidate graph.
+        attributes: List of attribute names to compute statistics for.
+        frame_attribute: The attribute name used for frame/time. Nodes without this
+            attribute are considered hypernodes and are excluded.
+
+    Returns:
+        Dictionary mapping attribute names to (mean, std) tuples.
+    """
+    statistics = {}
+
+    # Collect real nodes (not hypernodes)
+    real_nodes = [
+        (node, data) for node, data in graph.nodes(data=True) if frame_attribute in data
+    ]
+
+    for attr in attributes:
+        values = []
+        for node, data in real_nodes:
+            value = data.get(attr)
+            if value is not None:
+                # Handle array-like attributes by computing magnitude
+                if hasattr(value, "__len__") and not isinstance(value, str):
+                    values.append(float(np.linalg.norm(value)))
+                else:
+                    values.append(float(value))
+
+        statistics[attr] = _compute_mean_std(values)
+
+    return statistics

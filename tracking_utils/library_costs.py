@@ -3,7 +3,7 @@ import numpy as np
 from motile.costs import Cost, Weight
 from motile.solver import Solver
 from typing import Optional, Tuple, Union
-from motile.variables import EdgeSelected
+from motile.variables import EdgeSelected, NodeSelected
 
 from tracking_utils.utils import is_hyper_edge
 
@@ -112,4 +112,62 @@ class EdgeSelection(Cost):
             logger.warning(
                 f"Attribute '{self.attribute}' not found on edge or node for hyper-edge {edge}"
             )
+            return 0.0
+
+
+class NodeSelection(Cost):
+    """Cost for selecting nodes based on a node attribute.
+
+    Nodes with low attribute values are encouraged to be selected.
+    The attribute is z-score normalized if statistics are provided.
+
+    Args:
+        attribute: The attribute name to use for the node cost.
+        weight: Weight for the attribute feature.
+        constant: Constant cost added to each node.
+        statistics: Tuple of (mean, std) for z-score normalization.
+        eps: Small value to avoid division by zero during normalization.
+    """
+
+    def __init__(
+        self,
+        attribute: str,
+        weight: float = 1.0,
+        constant: float = 0.0,
+        statistics: Optional[Tuple[float, float]] = None,
+        eps: float = 1e-8,
+    ):
+        self.attribute = attribute
+        self.weight = Weight(weight)
+        self.constant = Weight(constant)
+        self.statistics = statistics
+        self.eps = eps
+
+    def apply(self, solver: Solver) -> None:
+        node_variables = solver.get_variables(NodeSelected)
+        for node, index in node_variables.items():
+            # Skip hypernodes (tuples used for hyper-edges)
+            if isinstance(node, tuple):
+                continue
+
+            feature = self._get_node_feature(solver.graph, node)
+            if self.statistics is not None:
+                mean, std = self.statistics
+                feature = (feature - mean) / (std + self.eps)
+            solver.add_variable_cost(index, feature, self.weight)
+            solver.add_variable_cost(index, 1.0, self.constant)
+
+    def _get_node_feature(self, graph, node) -> float:
+        """Get the feature value for a node."""
+        try:
+            value = graph.nodes[node].get(self.attribute)
+            if value is None:
+                logger.warning(f"Attribute '{self.attribute}' not found on node {node}")
+                return 0.0
+            # Handle array-like attributes by computing magnitude
+            if hasattr(value, "__len__") and not isinstance(value, str):
+                return float(np.linalg.norm(value))
+            return float(value)
+        except KeyError:
+            logger.warning(f"Node {node} not found in graph")
             return 0.0
