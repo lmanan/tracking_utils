@@ -24,6 +24,21 @@ def add_costs(
         node_statistics: Optional dictionary mapping node attribute names to (mean, std)
             tuples for z-score normalization of node costs.
     """
+    # Add node selection costs
+    if node_attributes:
+        node_statistics = node_statistics or {}
+        for attr in node_attributes:
+            solver.add_cost(
+                NodeSelection(
+                    attribute=attr,
+                    weight=1.0,
+                    constant=0.0,
+                    statistics=node_statistics.get(attr),
+                ),
+                name=f"Node Selection {attr}",
+            )
+
+    # Add edge selection costs
     for attr in edge_attributes:
         attr_key = attr if isinstance(attr, str) else attr[0]
         solver.add_cost(
@@ -38,20 +53,6 @@ def add_costs(
             ),
             name=f"Edge Selection {attr_key}",
         )
-
-    # Add node selection costs
-    if node_attributes:
-        node_statistics = node_statistics or {}
-        for attr in node_attributes:
-            solver.add_cost(
-                NodeSelection(
-                    attribute=attr,
-                    weight=1.0,
-                    constant=0.0,
-                    statistics=node_statistics.get(attr),
-                ),
-                name=f"Node Selection {attr}",
-            )
 
     solver.add_cost(
         Appear(weight=0.0, constant=1.0, ignore_attribute="ignore_appear_cost")
