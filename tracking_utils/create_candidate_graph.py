@@ -5,6 +5,7 @@ import numpy as np
 from scipy.spatial import KDTree
 from skimage.measure import regionprops_table
 from typing import Optional, List, Dict, Literal, Tuple
+from tqdm import tqdm
 from data_utils import load_csv_data, load_csv_edge_attribute, load_csv_node_attribute
 import zarr
 
@@ -208,7 +209,7 @@ def _add_region_props(
 
     attr_names = list(region_props_attributes.keys())
 
-    for t, node_list in frames.items():
+    for t, node_list in tqdm(frames.items(), desc="Computing region props"):
         t_int = int(t)
         # zarr is C T [Z] Y X, so index channel 0 for labels, all channels for intensity
         # regionprops expects channel axis last, so move from axis 0 to -1
