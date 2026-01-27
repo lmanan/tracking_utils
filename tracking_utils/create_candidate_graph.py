@@ -211,8 +211,9 @@ def _add_region_props(
     for t, node_list in frames.items():
         t_int = int(t)
         # zarr is C T [Z] Y X, so index channel 0 for labels, all channels for intensity
+        # regionprops expects channel axis last, so move from axis 0 to -1
         label_frame = np.array(label_data[0, t_int])
-        intensity_frame = np.array(intensity_data[:, t_int])
+        intensity_frame = np.moveaxis(np.array(intensity_data[:, t_int]), 0, -1)
 
         props = regionprops_table(
             label_frame,
