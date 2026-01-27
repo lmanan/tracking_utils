@@ -15,7 +15,7 @@ def _is_hypernode(graph: nx.DiGraph, node, frame_attribute: str = "time") -> boo
     return frame_attribute not in graph.nodes.get(node, {})
 
 
-def compute_graph_statistics(
+def compute_edge_statistics(
     graph: nx.DiGraph,
     attributes: List[str],
     frame_attribute: str = "time",

@@ -238,7 +238,11 @@ def _add_edge_attributes_from_csv(
             attribute_name=attribute_name,
         )
         for row in edge_attr_data:
-            src, tgt, attribute_value = int(row['id_u']), int(row['id_v']), float(row[attribute_name])
+            src, tgt, attribute_value = (
+                int(row["id_u"]),
+                int(row["id_v"]),
+                float(row[attribute_name]),
+            )
             if G.has_edge(src, tgt):
                 if is_affinity:
                     attribute_value = -attribute_value
