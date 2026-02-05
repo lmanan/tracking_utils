@@ -1,7 +1,7 @@
 from typing import Dict, List, Tuple, Union
 
 from tracking_utils.library_costs import EdgeSelection, NodeSelection
-from motile.costs import Appear, Disappear
+from motile.costs import Appear, Disappear, Split
 from motile.solver import Solver
 
 
@@ -11,6 +11,8 @@ def add_costs(
     edge_statistics: Dict[str, Dict[str, Tuple[float, float]]],
     node_attributes: List[str] = None,
     node_statistics: Dict[str, Tuple[float, float]] = None,
+    use_split_cost: bool = False,
+    add_hyper_edges: bool = False
 ) -> None:
     """Modify solver in place by adding edge distance, appear, and disappear costs.
 
@@ -53,6 +55,9 @@ def add_costs(
             ),
             name=f"Edge Selection {attr_key}",
         )
+
+    if use_split_cost and not add_hyper_edges:
+        solver.add_cost(Split(weight =0.0, constant= 1.0))
 
     solver.add_cost(
         Appear(weight=0.0, constant=1.0, ignore_attribute="ignore_appear_cost")

@@ -262,6 +262,77 @@ def _add_edge_attributes_from_csv(
                 G.edges[src, tgt][attribute_name] = attribute_value
 
 
+def _set_edges_groundtruth(
+    G: nx.DiGraph,
+    numerical_data: np.ndarray,
+    add_hyper_edges: bool,
+) -> None:
+    """Set GT attribute on edges based on parent-child relationships from CSV data.
+
+    Parses id and p_id (parent_id) columns from numerical_data to determine
+    ground truth edges.
+
+    If add_hyper_edges is False:
+        - For a parent with two daughters, both regular edges (parent->d1,
+          parent->d2) get GT=True.
+        - All other candidate edges get GT=False.
+
+    If add_hyper_edges is True:
+        - For a parent with two daughters, only the correct hyper edge gets
+          GT=True while the individual regular edges (parent->d1, parent->d2)
+          get GT=False.
+        - For a parent with one child, the regular edge gets GT=True.
+        - All other candidate edges from that parent get GT=False.
+
+    Args:
+        G: The graph with candidate edges.
+        numerical_data: Array with columns [id, time, [z], y, x, p_id].
+        add_hyper_edges: Whether hyper-edges are present in the graph.
+    """
+    # Initialize all edges to GT=False
+    for u, v in G.edges():
+        G.edges[u, v]["GT"] = False
+
+    # Build parent -> children mapping from CSV
+    parent_to_children: Dict[int, List[int]] = {}
+    for row in numerical_data:
+        node_id = int(row[0])
+        p_id = int(row[-1])
+        if p_id > 0 and G.has_node(p_id) and G.has_node(node_id):
+            if p_id not in parent_to_children:
+                parent_to_children[p_id] = []
+            parent_to_children[p_id].append(node_id)
+
+    if not add_hyper_edges:
+        # Set GT=True on all GT edges (both regular tracking and divisions)
+        for parent, children in parent_to_children.items():
+            for child in children:
+                if G.has_edge(parent, child):
+                    G.edges[parent, child]["GT"] = True
+    else:
+        for parent, children in parent_to_children.items():
+            if len(children) == 1:
+                # Regular tracking edge
+                child = children[0]
+                if G.has_edge(parent, child):
+                    G.edges[parent, child]["GT"] = True
+            elif len(children) == 2:
+                # Division: set GT on the hyper edge, not on regular edges
+                d1, d2 = children[0], children[1]
+                # Try both orderings since hypernode order depends on
+                # graph construction order
+                hypernode = (parent, d1, d2)
+                if not G.has_node(hypernode):
+                    hypernode = (parent, d2, d1)
+                if G.has_node(hypernode):
+                    if G.has_edge(parent, hypernode):
+                        G.edges[parent, hypernode]["GT"] = True
+                    if G.has_edge(hypernode, d1):
+                        G.edges[hypernode, d1]["GT"] = True
+                    if G.has_edge(hypernode, d2):
+                        G.edges[hypernode, d2]["GT"] = True
+
+
 def _add_node_attributes_from_csv(
     G: nx.DiGraph,
     node_attributes: Dict[Path, Tuple[str, float]],
@@ -306,7 +377,8 @@ def create_candidate_graph(
     voxel_size: Dict[str, float] = {"y": 1.0, "x": 1.0},
     direction: Literal["forward", "backward"] = "forward",
     add_hyper_edges: bool = False,
-    ground_truth: bool = False,
+    set_nodes_groundtruth: bool = False,
+    set_edges_groundtruth: bool = False,
 ) -> nx.DiGraph:
     """Create a candidate graph for tracking.
 
@@ -353,9 +425,14 @@ def create_candidate_graph(
             pairs of its neighbors within the same target frame. Hyper-edge
             targets are represented as (node1, node2) tuples. Useful for
             modeling cell divisions. Default is False.
-        ground_truth: If True, adds a 'GT' attribute set to True on all nodes.
-            This can be used with the Pin constraint to ensure ground truth
-            nodes are not dropped in the final solution. Default is False.
+        set_nodes_groundtruth: If True, adds a 'GT' attribute set to True on
+            all nodes. Default is False.
+        set_edges_groundtruth: If True, sets 'GT' attribute on edges based on
+            parent-child relationships (id and p_id columns) from csv_path.
+            If add_hyper_edges is False, both regular edges from a dividing
+            parent to its daughters get GT=True. If add_hyper_edges is True,
+            only the correct hyper edge gets GT=True while the individual
+            regular edges get GT=False. Default is False.
 
     Returns:
         A NetworkX DiGraph with:
@@ -410,10 +487,14 @@ def create_candidate_graph(
     if node_attributes is not None:
         _add_node_attributes_from_csv(G, node_attributes)
 
-    # Add GT attribute to all real nodes (not hypernodes) if ground_truth is True
-    if ground_truth:
+    # Add GT attribute to all real nodes (not hypernodes)
+    if set_nodes_groundtruth:
         for node_id in G.nodes():
             if isinstance(node_id, int):
                 G.nodes[node_id]["GT"] = True
+
+    # Set GT attribute on edges based on parent-child relationships
+    if set_edges_groundtruth:
+        _set_edges_groundtruth(G, numerical_data, add_hyper_edges)
 
     return G
