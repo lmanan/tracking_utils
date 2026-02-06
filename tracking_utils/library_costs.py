@@ -41,13 +41,16 @@ class EdgeSelection(Cost):
         hyper_constant: float = 0.0,
         regular_statistics: Optional[Tuple[float, float]] = None,
         hyper_statistics: Optional[Tuple[float, float]] = None,
+        use_hyper_edges: bool = False,
         eps: float = 1e-8,
     ):
         self.attribute = attribute
         self.regular_weight = Weight(regular_weight)
         self.regular_constant = Weight(regular_constant)
-        self.hyper_weight = Weight(hyper_weight)
-        self.hyper_constant = Weight(hyper_constant)
+        self.use_hyper_edges = use_hyper_edges
+        if use_hyper_edges:
+            self.hyper_weight = Weight(hyper_weight)
+            self.hyper_constant = Weight(hyper_constant)
         self.regular_statistics = regular_statistics
         self.hyper_statistics = hyper_statistics
         self.eps = eps
@@ -57,6 +60,8 @@ class EdgeSelection(Cost):
         for key, index in edge_variables.items():
             is_hyper = is_hyper_edge(key)
             if is_hyper:
+                if not self.use_hyper_edges:
+                    continue
                 feature = self._get_hyper_edge_distance(solver.graph, key)
                 if self.hyper_statistics is not None:
                     mean, std = self.hyper_statistics

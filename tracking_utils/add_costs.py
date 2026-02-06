@@ -12,7 +12,7 @@ def add_costs(
     node_attributes: List[str] = None,
     node_statistics: Dict[str, Tuple[float, float]] = None,
     use_split_cost: bool = False,
-    add_hyper_edges: bool = False
+    add_hyper_edges: bool = False,
 ) -> None:
     """Modify solver in place by adding edge distance, appear, and disappear costs.
 
@@ -52,12 +52,13 @@ def add_costs(
                 hyper_constant=0.0,
                 regular_statistics=edge_statistics[attr_key]["regular"],
                 hyper_statistics=edge_statistics[attr_key]["hyper"],
+                use_hyper_edges=add_hyper_edges,
             ),
             name=f"Edge Selection {attr_key}",
         )
 
     if use_split_cost and not add_hyper_edges:
-        solver.add_cost(Split(weight =0.0, constant= 1.0))
+        solver.add_cost(Split(weight=0.0, constant=1.0))
 
     solver.add_cost(
         Appear(weight=0.0, constant=1.0, ignore_attribute="ignore_appear_cost")
