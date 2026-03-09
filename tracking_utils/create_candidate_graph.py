@@ -45,6 +45,7 @@ def _add_edges(
     num_neighbors: int,
     delta_t: int,
     direction: Literal["forward", "backward"] = "forward",
+    max_spatial_distance: Optional[float] = None,
 ) -> None:
     """Add edges connecting nodes across time frames using KDTree spatial search.
 
@@ -52,6 +53,9 @@ def _add_edges(
     in adjacent frames based on direction:
     - forward: connects to frames t+1, t+2, ..., t+delta_t
     - backward: connects to frames t-1, t-2, ..., t-delta_t
+
+    If max_spatial_distance is set, only edges with distance <= max_spatial_distance
+    are added.
     """
     sample_node = list(G.nodes(data=True))[0][1]
     is_3d = "z" in sample_node
@@ -101,6 +105,8 @@ def _add_edges(
                     indices = [indices]
 
                 for dist, idx in zip(distances, indices):
+                    if max_spatial_distance is not None and dist > max_spatial_distance:
+                        continue
                     tgt = target_nodes[idx]
                     G.add_edge(src, tgt, distance=dist)
 
@@ -238,6 +244,7 @@ def _add_region_props(
 def _add_edge_attributes_from_csv(
     G: nx.DiGraph,
     edge_attributes: Dict[Path, Tuple[str, float]],
+    sequences: Optional[List[str]] = None,
 ) -> None:
     """Add edge attributes from CSV files.
 
@@ -246,11 +253,13 @@ def _add_edge_attributes_from_csv(
         edge_attributes: Dictionary mapping CSV file paths to (attribute_name, multiplier).
             Use multiplier 1.0 for costs (higher value = higher cost).
             Use multiplier -1.0 for affinities (higher value = lower cost).
+        sequences: Optional list of sequence names to filter by.
     """
     for edge_attr_csv, (attribute_name, multiplier) in edge_attributes.items():
         edge_attr_data, *_ = load_csv_edge_attribute(
             edge_attr_csv,
             attribute_name=attribute_name,
+            sequences=sequences,
         )
         for row in edge_attr_data:
             src, tgt, attribute_value = (
@@ -336,6 +345,7 @@ def _set_edges_groundtruth(
 def _add_node_attributes_from_csv(
     G: nx.DiGraph,
     node_attributes: Dict[Path, Tuple[str, float]],
+    sequences: Optional[List[str]] = None,
 ) -> None:
     """Add node attributes from CSV files.
 
@@ -346,10 +356,13 @@ def _add_node_attributes_from_csv(
             Values are stored as a list under the attribute_prefix name on each node.
             Use multiplier 1.0 for costs (higher value = higher cost).
             Use multiplier -1.0 for affinities (higher value = lower cost).
+        sequences: Optional list of sequence names to filter by.
     """
     for node_attr_csv, (attribute_prefix, multiplier) in node_attributes.items():
         node_attr_data, *_ = load_csv_node_attribute(
-            node_attr_csv, attribute_prefix=attribute_prefix
+            node_attr_csv,
+            attribute_prefix=attribute_prefix,
+            sequences=sequences,
         )
         # Get embedding field names (all fields except 'id' and 't')
         embedding_fields = [
@@ -379,6 +392,9 @@ def create_candidate_graph(
     add_hyper_edges: bool = False,
     set_nodes_groundtruth: bool = False,
     set_edges_groundtruth: bool = False,
+    t_min: Optional[int] = None,
+    t_max: Optional[int] = None,
+    max_spatial_distance: Optional[float] = None,
 ) -> nx.DiGraph:
     """Create a candidate graph for tracking.
 
@@ -433,6 +449,15 @@ def create_candidate_graph(
             parent to its daughters get GT=True. If add_hyper_edges is True,
             only the correct hyper edge gets GT=True while the individual
             regular edges get GT=False. Default is False.
+        t_min: Optional minimum time frame (inclusive). If provided, only
+            detections with time >= t_min are used. Default is None (no lower
+            bound).
+        t_max: Optional maximum time frame (inclusive). If provided, only
+            detections with time <= t_max are used. Default is None (no upper
+            bound).
+        max_spatial_distance: Optional maximum spatial distance for candidate
+            edges. If provided, only edges with distance <= max_spatial_distance
+            are added. Default is None (no distance limit).
 
     Returns:
         A NetworkX DiGraph with:
@@ -445,11 +470,16 @@ def create_candidate_graph(
         csv_path, voxel_size=voxel_size, sequences=[group]
     )
 
+    if t_min is not None:
+        numerical_data = numerical_data[numerical_data[:, 1] >= t_min]
+    if t_max is not None:
+        numerical_data = numerical_data[numerical_data[:, 1] <= t_max]
+
     G = nx.DiGraph()
 
     _add_nodes(G, numerical_data)
     frames = _group_nodes_by_frame(G)
-    _add_edges(G, frames, num_neighbors, delta_t, direction)
+    _add_edges(G, frames, num_neighbors, delta_t, direction, max_spatial_distance)
 
     # Flip edges if backward so motile gets forward-direction edges
     if direction == "backward":
@@ -482,10 +512,14 @@ def create_candidate_graph(
         )
 
     if edge_attributes is not None:
-        _add_edge_attributes_from_csv(G, edge_attributes)
+        _add_edge_attributes_from_csv(
+            G, edge_attributes, sequences=[group] if group else None
+        )
 
     if node_attributes is not None:
-        _add_node_attributes_from_csv(G, node_attributes)
+        _add_node_attributes_from_csv(
+            G, node_attributes, sequences=[group] if group else None
+        )
 
     # Add GT attribute to all real nodes (not hypernodes)
     if set_nodes_groundtruth:
