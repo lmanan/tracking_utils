@@ -42,6 +42,13 @@ def get_groundtruth_mask(
         A tuple (groundtruth, mask) of float32 arrays of length
         solver.num_variables.
     """
+    # Pre-register all variable types so solver.num_variables is final before
+    # allocating the mask.  get_variables() registers lazily on first call, so
+    # calling it here prevents an IndexError when NodeSplit (or any other type)
+    # is registered later and its indices exceed the pre-allocated mask size.
+    for _var_type in (EdgeSelected, NodeSelected, NodeAppear, NodeDisappear, NodeSplit):
+        solver.get_variables(_var_type)
+
     mask = np.zeros((solver.num_variables), dtype=np.float32)
     groundtruth = np.zeros_like(mask)
     if mode == "sparse":
