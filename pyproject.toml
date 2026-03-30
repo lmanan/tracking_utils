@@ -16,7 +16,9 @@ dependencies = [
     "scipy",
     "scikit-image",
     "networkx",
-    "zarr"
+    "zarr",
+    "motile",
+    "gurobipy"
 ]
 
 [project.optional-dependencies]
