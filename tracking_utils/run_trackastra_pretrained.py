@@ -27,8 +27,8 @@ def run_trackastra_pretrained(
     store = zarr.open(zarr_container, mode="r")
 
     for group_name in groups:
-        # C T Y X -> T Y X C
-        imgs = np.moveaxis(np.array(store[group_name][img_dataset_name]), 0, -1)
+        # C T Y X -> T Y X (C=1 grayscale, squeeze channel)
+        imgs = np.array(store[group_name][img_dataset_name])[0]
         # 1 T Y X -> T Y X
         masks = np.array(store[group_name][mask_dataset_name])[0]
         predictions = model._predict(imgs, masks, edge_threshold=threshold)
