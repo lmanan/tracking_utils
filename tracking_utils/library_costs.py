@@ -8,6 +8,7 @@ from motile.variables import EdgeSelected, NodeSelected
 from tracking_utils.utils import is_hyper_edge
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.ERROR)
 
 
 def _unwrap_node_id(node_id):
