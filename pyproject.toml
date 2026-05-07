@@ -12,13 +12,12 @@ authors = [{ name = "Manan Lalit", email = "manan.lalit@gmail.com" }]
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
-    "data_utils @ git+ssh://git@github.com/lmanan/data_utils.git", # data loading utilities
+    "data_utils @ git+https://github.com/lmanan/data_utils.git",
     "scipy",
     "scikit-image",
     "networkx",
     "zarr",
-    "motile",
-    "gurobipy"
+    "motile"
 ]
 
 [project.optional-dependencies]
