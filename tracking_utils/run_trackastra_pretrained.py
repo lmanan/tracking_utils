@@ -9,7 +9,7 @@ device = "automatic"  # explicit choices: [cuda, mps, cpu]
 
 def run_trackastra_pretrained(
     zarr_container: str,
-    sequences: List[str],
+    groups: List[str],
     img_dataset_name: str,
     mask_dataset_name: str,
     output_csv_file_name,
@@ -20,17 +20,17 @@ def run_trackastra_pretrained(
     output_csv_file_name.parent.mkdir(parents=True, exist_ok=True)
 
     with open(output_csv_file_name, "w", encoding="utf-8") as f:
-        f.write("#sequence id_u t_u id_v t_v association\n")
+        f.write("#group id_u t_u id_v t_v association\n")
 
     model = Trackastra.from_pretrained(name, device=device)
 
     store = zarr.open(zarr_container, mode="r")
 
-    for sequence_name in sequences:
+    for group_name in groups:
         # C T Y X -> T Y X C
-        imgs = np.moveaxis(np.array(store[sequence_name][img_dataset_name]), 0, -1)
+        imgs = np.moveaxis(np.array(store[group_name][img_dataset_name]), 0, -1)
         # 1 T Y X -> T Y X
-        masks = np.array(store[sequence_name][mask_dataset_name])[0]
+        masks = np.array(store[group_name][mask_dataset_name])[0]
         predictions = model._predict(imgs, masks, edge_threshold=threshold)
         id_time_dictionary = {}
         for node in predictions["nodes"]:
@@ -44,5 +44,5 @@ def run_trackastra_pretrained(
             if t_v == t_u + 1:
                 with open(output_csv_file_name, "a") as file:
                     file.write(
-                        f"{sequence_name} {id_u} {t_u} {id_v} {t_v} {association}\n"
+                        f"{group_name} {id_u} {t_u} {id_v} {t_v} {association}\n"
                     )

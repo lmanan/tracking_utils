@@ -19,7 +19,7 @@ def log_average_occupancy(solution_graph: nx.DiGraph, num_tracks: int) -> None:
       chain_t_end] of each stitched chain, averaged over all frames and
       divided by num_tracks. Treats the entire chain span as covered,
       ignoring intra-chain gaps. This reaches 1 when all chains span the
-      full sequence.
+      full group.
 
     Args:
         solution_graph: Solution graph where each node has t_start and t_end attributes.

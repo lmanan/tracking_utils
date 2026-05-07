@@ -244,7 +244,7 @@ def _add_region_props(
 def _add_edge_attributes_from_csv(
     G: nx.DiGraph,
     edge_attributes: Dict[Path, Tuple[str, float]],
-    sequences: Optional[List[str]] = None,
+    groups: Optional[List[str]] = None,
 ) -> None:
     """Add edge attributes from CSV files.
 
@@ -253,13 +253,13 @@ def _add_edge_attributes_from_csv(
         edge_attributes: Dictionary mapping CSV file paths to (attribute_name, multiplier).
             Use multiplier 1.0 for costs (higher value = higher cost).
             Use multiplier -1.0 for affinities (higher value = lower cost).
-        sequences: Optional list of sequence names to filter by.
+        groups: Optional list of group names to filter by.
     """
     for edge_attr_csv, (attribute_name, multiplier) in edge_attributes.items():
         edge_attr_data, *_ = load_csv_edge_attribute(
             edge_attr_csv,
             attribute_name=attribute_name,
-            sequences=sequences,
+            groups=groups,
         )
         for row in edge_attr_data:
             src, tgt, attribute_value = (
@@ -345,7 +345,7 @@ def _set_edges_groundtruth(
 def _add_node_attributes_from_csv(
     G: nx.DiGraph,
     node_attributes: Dict[Path, Tuple[str, float]],
-    sequences: Optional[List[str]] = None,
+    groups: Optional[List[str]] = None,
 ) -> None:
     """Add node attributes from CSV files.
 
@@ -356,13 +356,13 @@ def _add_node_attributes_from_csv(
             Values are stored as a list under the attribute_prefix name on each node.
             Use multiplier 1.0 for costs (higher value = higher cost).
             Use multiplier -1.0 for affinities (higher value = lower cost).
-        sequences: Optional list of sequence names to filter by.
+        groups: Optional list of group names to filter by.
     """
     for node_attr_csv, (attribute_prefix, multiplier) in node_attributes.items():
         node_attr_data, *_ = load_csv_node_attribute(
             node_attr_csv,
             attribute_prefix=attribute_prefix,
-            sequences=sequences,
+            groups=groups,
         )
         # Get embedding field names (all fields except 'id' and 't')
         embedding_fields = [
@@ -403,7 +403,7 @@ def create_candidate_graph(
 
     Args:
         num_neighbors: Number of nearest spatial neighbors to connect per node.
-        csv_path: Path to CSV file with columns: sequence, id, time, [z], y, x, p_id.
+        csv_path: Path to CSV file with columns: group, id, time, [z], y, x, p_id.
         edge_attributes: Optional dictionary mapping CSV file paths to
             (attribute_name, multiplier) tuples. Example:
             {"associations.csv": ("association", -1.0)}.
@@ -466,9 +466,7 @@ def create_candidate_graph(
             - Edges: Candidate associations between cells with distance attribute
               and any CSV-provided attributes.
     """
-    numerical_data, *_ = load_csv_data(
-        csv_path, voxel_size=voxel_size, sequences=[group]
-    )
+    numerical_data, *_ = load_csv_data(csv_path, voxel_size=voxel_size, groups=[group])
 
     if t_min is not None:
         numerical_data = numerical_data[numerical_data[:, 1] >= t_min]
@@ -513,12 +511,12 @@ def create_candidate_graph(
 
     if edge_attributes is not None:
         _add_edge_attributes_from_csv(
-            G, edge_attributes, sequences=[group] if group else None
+            G, edge_attributes, groups=[group] if group else None
         )
 
     if node_attributes is not None:
         _add_node_attributes_from_csv(
-            G, node_attributes, sequences=[group] if group else None
+            G, node_attributes, groups=[group] if group else None
         )
 
     # Add GT attribute to all real nodes (not hypernodes)
